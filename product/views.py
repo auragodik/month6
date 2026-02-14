@@ -8,6 +8,7 @@ from rest_framework.viewsets import ModelViewSet
 from rest_framework.views import APIView
 from common.permissions import IsModerator
 from .models import Category, Product, Review
+from common.validators import validate_age
 from .serializers import (
     CategorySerializer,
     ProductSerializer,
@@ -151,6 +152,9 @@ class ReviewViewSet(ModelViewSet):
         text = serializer.validated_data.get('text')
         stars = serializer.validated_data.get('stars')
         product = serializer.validated_data.get('product')
+        birthdate = request.user.birthdate
+        print(birthdate)
+        validate_age(birthdate)
 
         # Create review
         review = Review.objects.create(

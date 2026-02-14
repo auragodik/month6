@@ -14,7 +14,7 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     first_name = models.CharField(max_length=150, blank=True)
     last_name = models.CharField(max_length=150, blank=True)
     registration_source = models.CharField(max_length=20,choices=[('local','Local'),('google','Google'),('facebook','Facebook')], default='local')
-
+    birthdate = models.DateField(null=True, blank=True)
 
 
     objects = CustomUserManagers()
