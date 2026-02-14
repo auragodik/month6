@@ -6,7 +6,7 @@ from rest_framework.generics import ListCreateAPIView, RetrieveUpdateDestroyAPIV
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.viewsets import ModelViewSet
 from rest_framework.views import APIView
-
+from common.permissions import IsModerator
 from .models import Category, Product, Review
 from .serializers import (
     CategorySerializer,
@@ -69,6 +69,13 @@ class CategoryDetailAPIView(RetrieveUpdateDestroyAPIView):
 
 class ProductListCreateAPIView(ListCreateAPIView):
     queryset = Product.objects.select_related('category').all()
+    permission_classes = [IsModerator]
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_staff:
+            return Product.objects.all()
+        return Product.objects.filter(owner=user)
+    
     serializer_class = ProductSerializer
     pagination_class = CustomPagination
     permission_classes = [IsOwner | IsAnonymous]
@@ -81,7 +88,8 @@ class ProductListCreateAPIView(ListCreateAPIView):
         title = serializer.validated_data.get('title')
         description = serializer.validated_data.get('description')
         price = serializer.validated_data.get('price')
-        category = serializer.validated_data.get('category')
+        category = serializer.validated_data.get('category'),
+        owner=request.user
 
         # Create product
         product = Product.objects.create(
@@ -111,6 +119,7 @@ class ProductDetailAPIView(RetrieveUpdateDestroyAPIView):
     queryset = Product.objects.select_related('category').all()
     serializer_class = ProductSerializer
     lookup_field = 'id'
+    permission_classes = [IsModerator]
     permission_classes = [(IsOwner & CanEditWithIn15Minutes) | IsAnonymous]
 
     def put(self, request, *args, **kwargs):
@@ -122,6 +131,7 @@ class ProductDetailAPIView(RetrieveUpdateDestroyAPIView):
         product.description = serializer.validated_data.get('description')
         product.price = serializer.validated_data.get('price')
         product.category = serializer.validated_data.get('category')
+        product.owner = request.user 
         product.save()
 
         return Response(data=ProductSerializer(product).data)
@@ -132,7 +142,7 @@ class ReviewViewSet(ModelViewSet):
     serializer_class = ReviewSerializer
     pagination_class = CustomPagination
     lookup_field = 'id'
-
+    
     def create(self, request, *args, **kwargs):
         serializer = ReviewValidateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
