@@ -1,0 +1,7 @@
+https://accounts.google.com/o/oauth2/v2/auth?
+client_id=ваш_client_id&
+redirect_uri=ваш_uri&
+response_type=code&
+scope=openid%20email%20profile&
+access_type=offline&
+prompt=consent
