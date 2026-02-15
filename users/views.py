@@ -1,11 +1,12 @@
 from django.db import transaction
-from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from django.contrib.auth.models import User
 from django.contrib.auth import authenticate
 from rest_framework.authtoken.models import Token
 from rest_framework.generics import CreateAPIView
+from django.core.cache import cache
+from rest_framework_simplejwt.views import TokenObtainPairView
+
 from users.tasks import add
 from .serializers import (
     RegisterValidateSerializer,
@@ -13,26 +14,29 @@ from .serializers import (
     ConfirmationSerializer,
     CustomTokenObtainPairSerializer
 )
-from .models import ConfirmationCode
+from users.models import CustomUser
+
 import random
 import string
-from users.models import CustomUser
-from rest_framework_simplejwt.views import TokenObtainPairView
+
+
+CONFIRMATION_CODE_TTL = 300
 
 
 class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
 
+
 class AuthorizationAPIView(CreateAPIView):
     serializer_class = AuthValidateSerializer
-    
+
     def post(self, request):
         serializer = AuthValidateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
         user = authenticate(**serializer.validated_data)
 
-        add.delay(2,5)
+        add.delay(2, 5)
 
         if user:
             if not user.is_active:
@@ -42,7 +46,7 @@ class AuthorizationAPIView(CreateAPIView):
                 )
 
             token, _ = Token.objects.get_or_create(user=user)
-            return Response(data={'key': token.key})
+            return Response({'key': token.key})
 
         return Response(
             status=status.HTTP_401_UNAUTHORIZED,
@@ -61,7 +65,6 @@ class RegistrationAPIView(CreateAPIView):
         password = serializer.validated_data['password']
         birthdate = serializer.validated_data.get('birthdate')
 
-        # Use transaction to ensure data consistency
         with transaction.atomic():
             user = CustomUser.objects.create_user(
                 email=email,
@@ -70,13 +73,9 @@ class RegistrationAPIView(CreateAPIView):
                 birthdate=birthdate,
             )
 
-            # Create a random 6-digit code
             code = ''.join(random.choices(string.digits, k=6))
-
-            confirmation_code = ConfirmationCode.objects.create(
-                user=user,
-                code=code
-            )
+            key = f"confirmation_code_{user.id}"
+            cache.set(key, code, timeout=CONFIRMATION_CODE_TTL)
 
         return Response(
             status=status.HTTP_201_CREATED,
@@ -89,12 +88,22 @@ class RegistrationAPIView(CreateAPIView):
 
 class ConfirmUserAPIView(CreateAPIView):
     serializer_class = ConfirmationSerializer
-    
+
     def post(self, request):
         serializer = ConfirmationSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
         user_id = serializer.validated_data['user_id']
+        input_code = serializer.validated_data['code']
+
+        key = f"confirmation_code_{user_id}"
+        saved_code = cache.get(key)
+
+        if saved_code is None or saved_code != input_code:
+            return Response(
+                status=status.HTTP_400_BAD_REQUEST,
+                data={'error': 'Invalid or expired confirmation code'}
+            )
 
         with transaction.atomic():
             user = CustomUser.objects.get(id=user_id)
@@ -103,7 +112,7 @@ class ConfirmUserAPIView(CreateAPIView):
 
             token, _ = Token.objects.get_or_create(user=user)
 
-            ConfirmationCode.objects.filter(user=user).delete()
+            cache.delete(key)
 
         return Response(
             status=status.HTTP_200_OK,
@@ -112,5 +121,6 @@ class ConfirmUserAPIView(CreateAPIView):
                 'key': token.key
             }
         )
+
 CELERY_BROKER_URL = "redis://127.0.0.1:6379/4"
 CELERY_RESULT_BACKEND = "redis://127.0.0.1:6379/4"
