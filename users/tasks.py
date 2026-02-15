@@ -1,6 +1,6 @@
 from celery import shared_task
 
-from    django.core.email import send_mail
+from django.core.mail import send_mail
 @shared_task
 def add(x, y):
     print(f"args: {x}, {y}")

@@ -1,6 +1,6 @@
 from django.contrib.auth.models import BaseUserManager
 
-class CustomUserManager(BaseUserManager):
+class CustomUserManagers(BaseUserManager):
     def create_user(self, email, password=None, **extra_fields):
         if not email:
             raise ValueError("Email is not found")

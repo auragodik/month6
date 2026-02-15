@@ -1,7 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
 from django.core.exceptions import ValidationError
-from common.validators import phone_validator
+from common.validators import validate_age
 from users.managers import CustomUserManagers
 
 
@@ -9,7 +9,7 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     email = models.EmailField(unique=True)
     is_staff = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
-    phone_number = models.CharField(max_length=13, validators=[phone_validator], blank=True, null=True)
+    phone_number = models.CharField(max_length=13, validators=[validate_age], blank=True, null=True)
     birthdate = models.DateField(blank=True, null=True)
     first_name = models.CharField(max_length=150, blank=True)
     last_name = models.CharField(max_length=150, blank=True)
